@@ -43,29 +43,41 @@ export function installXhrInterceptor(win: Window, ctx: DispatchContext): XhrInt
   // eslint-disable-next-line @typescript-eslint/unbound-method
   const originalSend = XhrProto.send;
 
-  // open(method, url, [...rest])
-  function patchedOpen(this: ContextualXhr, ...args: Parameters<typeof originalOpen>): void {
-    const [methodArg, urlArg] = args;
-    const url = typeof urlArg === "string" ? urlArg : urlArg.toString();
-    if (matchCartEndpoint(url)) {
-      this[XHR_CONTEXT_KEY] = { method: methodArg.toUpperCase(), url };
+  // Explicit signatures rather than `Parameters<typeof X>` — the latter only
+  // resolves to the LAST overload of `XhrProto.open` (the 5-arg form), which
+  // then fails to assign to the 2-arg overload. Explicit optional params
+  // satisfy both overload arities.
+  function patchedOpen(
+    this: ContextualXhr,
+    method: string,
+    url: string | URL,
+    async?: boolean,
+    username?: string | null,
+    password?: string | null,
+  ): void {
+    const urlString = typeof url === "string" ? url : url.toString();
+    if (matchCartEndpoint(urlString)) {
+      this[XHR_CONTEXT_KEY] = { method: method.toUpperCase(), url: urlString };
     } else if (this[XHR_CONTEXT_KEY]) {
       // Reused XHR object pointed at a non-cart URL — clear stale context.
       delete this[XHR_CONTEXT_KEY];
     }
-    return originalOpen.apply(this, args);
+    // Always invoke via the 5-arg overload (TypeScript's typing of
+    // Function.prototype.call against an overloaded method picks the LAST
+    // overload). Per the XHR spec, `async` defaults to true when omitted —
+    // we mirror that here so wrapped behavior matches unwrapped.
+    return originalOpen.call(this, method, url, async ?? true, username, password);
   }
 
-  function patchedSend(this: ContextualXhr, ...args: Parameters<typeof originalSend>): void {
+  function patchedSend(this: ContextualXhr, body?: Document | XMLHttpRequestBodyInit | null): void {
     const xhrContext = this[XHR_CONTEXT_KEY];
     if (!xhrContext) {
-      return originalSend.apply(this, args);
+      return originalSend.call(this, body);
     }
-    const [body] = args;
     const bodyString = stringifyXhrBody(body);
     const parsed = parseCartRequest(xhrContext.url, bodyString);
     if (!parsed || parsed.intents.length === 0) {
-      return originalSend.apply(this, args);
+      return originalSend.call(this, body);
     }
 
     const tx = dispatchIntents(parsed, ctx);
@@ -85,17 +97,11 @@ export function installXhrInterceptor(win: Window, ctx: DispatchContext): XhrInt
     this.addEventListener("abort", onFailure("aborted"));
     this.addEventListener("timeout", onFailure("timeout"));
 
-    return originalSend.apply(this, args);
+    return originalSend.call(this, body);
   }
 
-  // reason: XhrProto.open is an overload union (2-arg and 5-arg variants); our
-  // rest-param patched form doesn't match either single overload structurally,
-  // even though it's runtime-compatible with both. The cast resolves the tsc
-  // mismatch; ESLint's no-unnecessary-type-assertion is a false positive here.
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-  XhrProto.open = patchedOpen as typeof XhrProto.open;
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-  XhrProto.send = patchedSend as typeof XhrProto.send;
+  XhrProto.open = patchedOpen;
+  XhrProto.send = patchedSend;
 
   return () => {
     if (XhrProto.open === patchedOpen) {
