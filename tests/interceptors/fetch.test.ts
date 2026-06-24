@@ -109,4 +109,101 @@ describe("installFetchInterceptor", () => {
     expect(typeof uninstall).toBe("function");
     expect(() => uninstall()).not.toThrow();
   });
+
+  it("extracts a URL string from URL objects passed as input", async () => {
+    const ctx = buildCtx();
+    const originalFetch = vi.fn(async () => new Response("ok"));
+    Object.defineProperty(window, "fetch", { value: originalFetch, configurable: true });
+    const uninstall = installFetchInterceptor(window, ctx);
+    const capture = captureEvents(document, ["shopify:cart:lines-update"]);
+
+    const url = new URL("https://shop.myshopify.com/cart/add.js");
+    await window.fetch(url, {
+      method: "POST",
+      body: JSON.stringify({ id: 7, quantity: 1 }),
+    });
+
+    expect(capture.events).toHaveLength(1);
+    capture.teardown();
+    uninstall();
+  });
+
+  it("snapshots the body of a Request object via clone", async () => {
+    const ctx = buildCtx();
+    const originalFetch = vi.fn(async () => new Response("ok"));
+    Object.defineProperty(window, "fetch", { value: originalFetch, configurable: true });
+    const uninstall = installFetchInterceptor(window, ctx);
+    const capture = captureEvents(document, ["shopify:cart:lines-update"]);
+
+    const request = new Request("/cart/add.js", {
+      method: "POST",
+      body: JSON.stringify({ id: 9, quantity: 1 }),
+    });
+    await window.fetch(request);
+
+    expect(capture.events).toHaveLength(1);
+    capture.teardown();
+    uninstall();
+  });
+
+  it("accepts URLSearchParams as a request body", async () => {
+    const ctx = buildCtx();
+    const originalFetch = vi.fn(async () => new Response("ok"));
+    Object.defineProperty(window, "fetch", { value: originalFetch, configurable: true });
+    const uninstall = installFetchInterceptor(window, ctx);
+    const capture = captureEvents(document, ["shopify:cart:lines-update"]);
+
+    await window.fetch("/cart/add.js", {
+      method: "POST",
+      body: new URLSearchParams({ id: "10", quantity: "1" }),
+    });
+
+    expect(capture.events).toHaveLength(1);
+    capture.teardown();
+    uninstall();
+  });
+
+  it("falls through cleanly when the body is not string-readable (FormData)", async () => {
+    const ctx = buildCtx();
+    const originalFetch = vi.fn(async () => new Response("ok"));
+    Object.defineProperty(window, "fetch", { value: originalFetch, configurable: true });
+    const uninstall = installFetchInterceptor(window, ctx);
+    const capture = captureEvents(document, ["shopify:cart:lines-update"]);
+
+    const fd = new FormData();
+    fd.append("id", "11");
+    fd.append("quantity", "1");
+    await window.fetch("/cart/add.js", { method: "POST", body: fd });
+
+    // FormData isn't parsed — no events dispatched, original request still made.
+    expect(capture.events).toHaveLength(0);
+    expect(originalFetch).toHaveBeenCalled();
+    capture.teardown();
+    uninstall();
+  });
+
+  it("rejects pending promises and throws when the underlying fetch throws", async () => {
+    const ctx = buildCtx();
+    const networkError = new Error("network down");
+    const originalFetch = vi.fn(async () => Promise.reject(networkError));
+    Object.defineProperty(window, "fetch", { value: originalFetch, configurable: true });
+    const uninstall = installFetchInterceptor(window, ctx);
+    const capture = captureEvents(document, ["shopify:cart:lines-update", "shopify:cart:error"]);
+    const consume = (e: Event): void => {
+      (e as Event & { promise?: Promise<unknown> }).promise?.catch(() => undefined);
+    };
+    document.addEventListener("shopify:cart:lines-update", consume);
+
+    await expect(
+      window.fetch("/cart/add.js", {
+        method: "POST",
+        body: JSON.stringify({ id: 1, quantity: 1 }),
+      }),
+    ).rejects.toBe(networkError);
+
+    expect(capture.events.some((e) => e.type === "shopify:cart:error")).toBe(true);
+    document.removeEventListener("shopify:cart:lines-update", consume);
+    capture.teardown();
+    uninstall();
+  });
 });

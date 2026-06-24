@@ -22,6 +22,14 @@ import { type StandardEventsModule } from "./types.js";
 
 export const SHOPIFY_STANDARD_EVENTS_URL = "https://cdn.shopify.com/storefront/standard-events.js";
 
+/**
+ * Dynamic-import function signature. Production code uses the default impl
+ * which calls `import(url)`. Tests inject a stub to avoid hitting the network.
+ */
+export type DynamicImporter = (url: string) => Promise<unknown>;
+
+const defaultImporter: DynamicImporter = (url) => import(/* @vite-ignore */ url);
+
 let inflightLoad: Promise<StandardEventsModule> | null = null;
 
 /**
@@ -29,9 +37,14 @@ let inflightLoad: Promise<StandardEventsModule> | null = null;
  * loaded (theme loaded it, or a previous call resolved), returns the cached
  * reference immediately. Otherwise dynamically imports the module from the
  * Shopify CDN and exposes it on `window.Shopify.StandardEvents`.
+ *
+ * The `importer` parameter exists for dependency injection in tests; production
+ * callers always use the default. It's NOT part of the exported public API
+ * stability guarantee — consumers shouldn't rely on it.
  */
 export async function loadStandardEventsModule(
   url: string = SHOPIFY_STANDARD_EVENTS_URL,
+  importer: DynamicImporter = defaultImporter,
 ): Promise<StandardEventsModule> {
   const cached = readStandardEventsLibrary();
   if (cached) return cached;
@@ -40,7 +53,7 @@ export async function loadStandardEventsModule(
 
   inflightLoad = (async (): Promise<StandardEventsModule> => {
     try {
-      const mod = (await import(/* @vite-ignore */ url)) as StandardEventsModule;
+      const mod = (await importer(url)) as StandardEventsModule;
       assertModuleShape(mod);
       exposeOnWindow(mod);
       return mod;
