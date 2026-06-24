@@ -130,10 +130,7 @@ describe("loadStandardEventsModule — failure paths", () => {
     // After failure, the next call should issue a fresh importer invocation.
     const mockModule = buildMockStandardEventsModule();
     const successImporter = vi.fn(async () => mockModule);
-    const result = await loadStandardEventsModule(
-      SHOPIFY_STANDARD_EVENTS_URL,
-      successImporter,
-    );
+    const result = await loadStandardEventsModule(SHOPIFY_STANDARD_EVENTS_URL, successImporter);
     expect(result).toBe(mockModule);
     expect(successImporter).toHaveBeenCalledTimes(1);
   });

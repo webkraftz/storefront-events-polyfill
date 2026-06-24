@@ -62,7 +62,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "size": "size-limit",
-    "ci": "npm run lint && npm run typecheck && npm run test && npm run build && npm run size",
+    "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build && npm run size",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish",
