@@ -1,0 +1,103 @@
+{
+  "name": "@retenka/storefront-events-polyfill",
+  "version": "0.0.0",
+  "description": "Drop-in polyfill that dispatches Shopify's official Standard Storefront Events on themes that don't yet emit them natively. Intercepts /cart/{add,change,update,clear}.js, dispatches shopify:cart:lines-update / note-update / discount-update / error via the platform-hosted event classes.",
+  "keywords": [
+    "shopify",
+    "shopify-theme",
+    "storefront",
+    "polyfill",
+    "standard-events",
+    "cart"
+  ],
+  "license": "MIT",
+  "author": "Retenka",
+  "homepage": "https://github.com/webkraftz/storefront-events-polyfill#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webkraftz/storefront-events-polyfill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/webkraftz/storefront-events-polyfill/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./auto": {
+      "types": "./dist/auto.d.ts",
+      "import": "./dist/auto.js",
+      "default": "./dist/auto.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": [
+    "./dist/auto.js"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --cache .",
+    "lint:fix": "eslint --cache --fix .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "size": "size-limit",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build && npm run size",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
+    "prepublishOnly": "npm run ci"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.10",
+    "@size-limit/preset-small-lib": "^11.1.6",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.18.1",
+    "@typescript-eslint/parser": "^8.18.1",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-vitest": "^0.5.4",
+    "happy-dom": "^15.11.7",
+    "prettier": "^3.4.2",
+    "size-limit": "^11.1.6",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "size-limit": [
+    {
+      "name": "Core (manual install)",
+      "path": "dist/index.js",
+      "limit": "3 KB"
+    },
+    {
+      "name": "Auto (with side-effect bootstrap)",
+      "path": "dist/auto.js",
+      "limit": "3.5 KB"
+    }
+  ]
+}

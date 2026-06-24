@@ -1,0 +1,65 @@
+name: Release
+
+# Changesets-driven release flow:
+#  1. Contributors add a .changeset/ entry in their PR describing the bump.
+#  2. On every push to main, the changesets bot opens / updates a "Version Packages" PR
+#     that bumps the version + writes CHANGELOG.md.
+#  3. When that PR is merged, this workflow publishes to npm via OIDC trusted
+#     publishing (no PAT token required) and creates a GitHub release.
+#
+# OIDC publishing setup notes (see README's Releasing section):
+#  - The `@retenka` npm scope must have GitHub trusted publishing configured
+#    pointing at this repo + the publish workflow.
+#  - `id-token: write` permission grants the OIDC token; `contents: write` lets
+#    the changesets action create the version PR + GitHub releases.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Version + publish via changesets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout (with full history for changesets)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run CI gate before publishing
+        run: npm run ci
+
+      - name: Create release PR or publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: npm run release
+          commit: "chore: release @retenka/storefront-events-polyfill"
+          title: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NPM_TOKEN is intentionally omitted — the changesets action uses
+          # `npm publish --provenance` which authenticates via the OIDC token
+          # exposed by the id-token: write permission above.

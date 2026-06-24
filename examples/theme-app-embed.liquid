@@ -1,0 +1,17 @@
+{%- comment -%}
+  Example theme app embed snippet that loads the polyfill from jsdelivr.
+
+  Place this snippet in a Shopify theme app extension's app-embed block (or
+  paste the <script> tag directly into theme.liquid's <head>). The polyfill
+  auto-detects native standard-events support and becomes a no-op when
+  unneeded — safe to install unconditionally.
+
+  Version pinning: @1 pulls the latest 1.x release. Pin to @1.2.3 for
+  absolute stability across deploys.
+{%- endcomment -%}
+
+<script
+  type="module"
+  src="https://cdn.jsdelivr.net/npm/@retenka/storefront-events-polyfill@1/dist/auto.js"
+  defer
+></script>
