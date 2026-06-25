@@ -22,14 +22,14 @@ The OIDC path is the long-term goal. The manual path exists for unblocking relea
 
 Lives at https://www.npmjs.com/package/@retenka/storefront-events-polyfill/access. Required values:
 
-| Field | Value |
-|---|---|
-| Publisher | GitHub Actions |
-| Organization or user | `webkraftz` |
-| Repository | `storefront-events-polyfill` |
-| Workflow filename | `release.yml` |
-| Environment name | *(leave blank)* |
-| Allowed actions | ✅ Allow npm publish |
+| Field                | Value                        |
+| -------------------- | ---------------------------- |
+| Publisher            | GitHub Actions               |
+| Organization or user | `webkraftz`                  |
+| Repository           | `storefront-events-polyfill` |
+| Workflow filename    | `release.yml`                |
+| Environment name     | _(leave blank)_              |
+| Allowed actions      | ✅ Allow npm publish         |
 
 ### Verifying claims that GitHub sends
 
@@ -49,12 +49,12 @@ The release workflow includes a `Diagnostic — print OIDC claims for npm audien
 
 ### Common failure modes
 
-| Symptom | Cause | Fix |
-|---|---|---|
+| Symptom                                                                                                                    | Cause                                                                                                                      | Fix                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm error 404 Not Found - PUT registry.npmjs.org/@retenka%2fstorefront-events-polyfill` AFTER successful Sigstore signing | npm's "not authorized" disguised as 404. Trusted-publisher row mismatch (typo, env name, case) OR stuck server-side cache. | (1) Verify each field in the npm UI matches the OIDC claims exactly. (2) If it does, **delete and re-add the trusted publisher row** to force a fresh server-side state. (3) If that still fails, use the [manual bootstrap publish](#manual-bootstrap-publish-fallback) and open an npm support ticket. |
-| `npm error 409 Conflict — Failed to save packument` | npm's packument doc is in a half-saved state from a previous attempt. | Transient — wait 60-120 seconds, retry. |
-| `prettier --check` fails in the CI gate | Changeset / package.json edits introduced formatting drift. | Run `npm run format` locally, commit, push. The CI gate is `npm run lint && format:check && typecheck && test && build && size`. |
-| Workflow runs but no publish attempt fires | Unconsumed changesets in `main` — the action is in "open Version PR" mode, not "publish" mode. | Merge the open Version Packages PR. |
+| `npm error 409 Conflict — Failed to save packument`                                                                        | npm's packument doc is in a half-saved state from a previous attempt.                                                      | Transient — wait 60-120 seconds, retry.                                                                                                                                                                                                                                                                  |
+| `prettier --check` fails in the CI gate                                                                                    | Changeset / package.json edits introduced formatting drift.                                                                | Run `npm run format` locally, commit, push. The CI gate is `npm run lint && format:check && typecheck && test && build && size`.                                                                                                                                                                         |
+| Workflow runs but no publish attempt fires                                                                                 | Unconsumed changesets in `main` — the action is in "open Version PR" mode, not "publish" mode.                             | Merge the open Version Packages PR.                                                                                                                                                                                                                                                                      |
 
 ---
 
@@ -66,15 +66,15 @@ Use this **only** when OIDC publishing is broken AND a release is urgent. It byp
 
 Go to **https://www.npmjs.com/settings/[your-username]/tokens** → **Generate New Token** → **Granular Access Token**.
 
-| Field | Value |
-|---|---|
-| Token name | `bootstrap-publish-<version>` (e.g., `bootstrap-publish-1.0.1`) |
-| Description | One-line note about why this token exists |
-| Expiration | **1 day** (cap at 7) — DO NOT use no-expiration |
-| Allowed IP ranges | leave blank |
-| Packages and scopes | **Select packages** → `@retenka/storefront-events-polyfill` only (do not select the whole scope) |
-| Permissions on selected packages | **Read and write** |
-| Two-factor authentication | ✅ **Bypass 2FA when publishing** |
+| Field                            | Value                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Token name                       | `bootstrap-publish-<version>` (e.g., `bootstrap-publish-1.0.1`)                                  |
+| Description                      | One-line note about why this token exists                                                        |
+| Expiration                       | **1 day** (cap at 7) — DO NOT use no-expiration                                                  |
+| Allowed IP ranges                | leave blank                                                                                      |
+| Packages and scopes              | **Select packages** → `@retenka/storefront-events-polyfill` only (do not select the whole scope) |
+| Permissions on selected packages | **Read and write**                                                                               |
+| Two-factor authentication        | ✅ **Bypass 2FA when publishing**                                                                |
 
 Generate. Copy the token. **Never paste it into chat / commits / Slack — only into your local terminal.**
 
@@ -139,9 +139,9 @@ The CI publish flow handles drift gracefully — it just publishes whatever `pac
 
 ## Field history
 
-| Date | Reason for manual bootstrap | Outcome |
-|---|---|---|
-| 2026-06-22 | First publish — npm scope had no prior versions, so OIDC trusted publisher couldn't be configured until the package existed. | Bootstrap-published v1.0.0 with short-lived token. Token revoked. Then configured the trusted publisher. |
-| 2026-06-25 | OIDC trusted publisher consistently returns 404 ("not authorized" disguised) despite UI showing correct configuration. Sigstore signing succeeds; npm rejects the upload. Root cause not yet identified — likely a stale server-side state from the first failed OIDC attempt. | Bootstrap-published v1.0.1 with short-lived token. Token revoked. Issue still under investigation. |
+| Date       | Reason for manual bootstrap                                                                                                                                                                                                                                                    | Outcome                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 2026-06-22 | First publish — npm scope had no prior versions, so OIDC trusted publisher couldn't be configured until the package existed.                                                                                                                                                   | Bootstrap-published v1.0.0 with short-lived token. Token revoked. Then configured the trusted publisher. |
+| 2026-06-25 | OIDC trusted publisher consistently returns 404 ("not authorized" disguised) despite UI showing correct configuration. Sigstore signing succeeds; npm rejects the upload. Root cause not yet identified — likely a stale server-side state from the first failed OIDC attempt. | Bootstrap-published v1.0.1 with short-lived token. Token revoked. Issue still under investigation.       |
 
 When the OIDC root cause is found, append a fix entry here and STOP using the manual path.
