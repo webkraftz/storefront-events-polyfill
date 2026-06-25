@@ -117,7 +117,11 @@ describe("installXhrInterceptor", () => {
     xhr.send(fd);
 
     expect(capture.events).toHaveLength(1);
-    const detail = (capture.events[0] as { detail: { action: string; lines: Array<{ merchandiseId: string; quantity: number }> } }).detail;
+    const detail = (
+      capture.events[0] as unknown as {
+        detail: { action: string; lines: Array<{ merchandiseId: string; quantity: number }> };
+      }
+    ).detail;
     expect(detail.action).toBe("add");
     expect(detail.lines).toEqual([
       { merchandiseId: "gid://shopify/ProductVariant/49905871061185", quantity: 1 },
