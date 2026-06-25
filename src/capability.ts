@@ -3,34 +3,36 @@
  * events natively?" Used at install time to skip polyfill installation, and at
  * runtime to self-disable if native support appears mid-page-lifetime.
  *
- * Two signals are considered authoritative (per Shopify-AI conv
- * `conv_1782304665082_rp96uj5yj`):
+ * Only ONE signal is authoritative for "events fire natively on cart writes":
  *
- *  1. `window.Shopify.StandardEvents` — the canonical exposed library, set by
- *     themes that follow the documented "Loading the library" snippet at
- *     https://shopify.dev/docs/storefronts/themes/best-practices/standard-events
+ *   `Shopify.actions.updateCart.isDefault() === false` — the theme has called
+ *   `.configure(...)` on the updateCart action, which auto-emits standard
+ *   events whenever the configured action runs.
  *
- *  2. `Shopify.actions.updateCart.isDefault() === false` — the theme has called
- *     `.configure(...)` on the updateCart action, which auto-emits standard
- *     events when the action runs. Default (`true`) does NOT guarantee absence
- *     of events but also doesn't guarantee presence — treat as "unknown" and
- *     fall through to install.
+ * Library presence (`window.Shopify.StandardEvents`) is **NOT** sufficient.
+ * Shopify auto-injects the StandardEvents runtime on Plus tier stores even
+ * when the theme is still using raw AJAX cart endpoints (`fetch('/cart/add.js')`)
+ * that do NOT dispatch any events. The library was originally part of the
+ * skip-install heuristic; field reports from `plus-webkraftz-com` 2026-06-25
+ * proved this assumption wrong — the polyfill silently no-op'd while the
+ * theme's cart mutations went unintercepted. `libraryLoaded()` remains
+ * exported (the loader uses it to decide whether to re-fetch the runtime).
  *
- * Heuristic — neither signal is by itself a guarantee. The check is
- * "conservative skip": if either is positive, we assume native support and
- * skip the polyfill, accepting the small risk that a theme might load the
- * library without dispatching events (extremely unlikely in practice).
+ * Default `isDefault() === true` means "theme didn't call .configure" — the
+ * case for every theme using legacy AJAX cart endpoints today. Those themes
+ * need the polyfill.
  */
 
 import { type StandardEventsModule } from "./types.js";
 
 /**
- * Returns true when the current page appears to support standard storefront
- * events without our polyfill. The polyfill SHOULD NOT install when this is
- * true, and SHOULD self-disable if this flips to true mid-lifetime.
+ * Returns true when the current page appears to dispatch standard storefront
+ * cart events natively. The polyfill SHOULD NOT install when this is true.
+ * Only positive when the theme has configured a non-default updateCart action
+ * — library-loaded alone is not a reliable signal (see file docblock).
  */
 export function hasNativeStandardEventsSupport(): boolean {
-  return libraryLoaded() || updateCartConfigured();
+  return updateCartConfigured();
 }
 
 /** Tighter check — has the canonical events library been loaded and exposed? */

@@ -8,8 +8,20 @@ afterEach(() => {
   delete (window as { Shopify?: unknown }).Shopify;
 });
 
+// Helper — set Shopify global to a configuration that REPRESENTS the native
+// support signal (theme has configured updateCart). Plain StandardEvents
+// library presence is no longer sufficient — see capability.ts docblock.
+function setNativeSupport(): void {
+  window.Shopify = {
+    StandardEvents: buildMockStandardEventsModule(),
+    actions: {
+      updateCart: Object.assign(() => Promise.resolve({}), { isDefault: () => false }),
+    },
+  };
+}
+
 describe("installLifecycleWatchers", () => {
-  it("calls onCapabilityAppeared when native library appears on visibilitychange", () => {
+  it("calls onCapabilityAppeared when native support appears on visibilitychange", () => {
     const onCapabilityAppeared = vi.fn();
     const uninstall = installLifecycleWatchers(window, { onCapabilityAppeared });
 
@@ -17,8 +29,8 @@ describe("installLifecycleWatchers", () => {
     document.dispatchEvent(new Event("visibilitychange"));
     expect(onCapabilityAppeared).not.toHaveBeenCalled();
 
-    // Native library appears, then visibility flips → fire once.
-    window.Shopify = { StandardEvents: buildMockStandardEventsModule() };
+    // Native support appears (configured updateCart), then visibility flips → fire once.
+    setNativeSupport();
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     document.dispatchEvent(new Event("visibilitychange"));
     expect(onCapabilityAppeared).toHaveBeenCalledTimes(1);
@@ -30,7 +42,7 @@ describe("installLifecycleWatchers", () => {
     const onCapabilityAppeared = vi.fn();
     const uninstall = installLifecycleWatchers(window, { onCapabilityAppeared });
 
-    window.Shopify = { StandardEvents: buildMockStandardEventsModule() };
+    setNativeSupport();
     window.dispatchEvent(new Event("pageshow"));
     expect(onCapabilityAppeared).toHaveBeenCalledTimes(1);
 
@@ -41,7 +53,7 @@ describe("installLifecycleWatchers", () => {
     const onCapabilityAppeared = vi.fn();
     const uninstall = installLifecycleWatchers(window, { onCapabilityAppeared });
 
-    window.Shopify = { StandardEvents: buildMockStandardEventsModule() };
+    setNativeSupport();
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     document.dispatchEvent(new Event("visibilitychange"));
     window.dispatchEvent(new Event("pageshow"));
@@ -57,7 +69,7 @@ describe("installLifecycleWatchers", () => {
     const uninstall = installLifecycleWatchers(window, { onCapabilityAppeared });
     uninstall();
 
-    window.Shopify = { StandardEvents: buildMockStandardEventsModule() };
+    setNativeSupport();
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     document.dispatchEvent(new Event("visibilitychange"));
     window.dispatchEvent(new Event("pageshow"));

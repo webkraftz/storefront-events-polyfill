@@ -29,13 +29,27 @@ describe("hasNativeStandardEventsSupport", () => {
     expect(hasNativeStandardEventsSupport()).toBe(false);
   });
 
-  it("returns true when StandardEvents library is loaded", () => {
+  it("returns FALSE when only the StandardEvents library is loaded (Plus auto-injection case)", () => {
+    // Shopify auto-injects the StandardEvents runtime on Plus tier stores even
+    // when the theme is still using raw AJAX cart endpoints that don't dispatch
+    // events. The polyfill MUST still install in this case — library presence
+    // alone is not a reliable native-support signal. See file docblock.
     window.Shopify = { StandardEvents: buildMockStandardEventsModule() };
-    expect(hasNativeStandardEventsSupport()).toBe(true);
+    expect(hasNativeStandardEventsSupport()).toBe(false);
   });
 
   it("returns true when updateCart action has been configured", () => {
     window.Shopify = {
+      actions: {
+        updateCart: Object.assign(() => Promise.resolve({}), { isDefault: () => false }),
+      },
+    };
+    expect(hasNativeStandardEventsSupport()).toBe(true);
+  });
+
+  it("returns true when BOTH library + configured updateCart are present (modern theme on actions API)", () => {
+    window.Shopify = {
+      StandardEvents: buildMockStandardEventsModule(),
       actions: {
         updateCart: Object.assign(() => Promise.resolve({}), { isDefault: () => false }),
       },

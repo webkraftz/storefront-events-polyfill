@@ -31,10 +31,15 @@ describe("install — no-op paths", () => {
     expect(handle.isDisabled()).toBe(true);
   });
 
-  it("returns a no-op handle when StandardEvents library is already loaded", async () => {
+  it("INSTALLS even when StandardEvents library is already loaded (no configured updateCart)", async () => {
+    // Library-loaded alone is not native-support — Shopify auto-injects the
+    // runtime on Plus tier stores while themes still use legacy AJAX cart
+    // endpoints that don't dispatch events. The polyfill must still install.
+    // See capability.ts docblock for the field-evidence regression.
     window.Shopify = { StandardEvents: buildMockStandardEventsModule() };
     const handle = await install();
-    expect(handle.isDisabled()).toBe(true);
+    expect(handle.isDisabled()).toBe(false);
+    handle.uninstall();
   });
 
   it("returns a no-op handle when updateCart action has been configured", async () => {
@@ -84,7 +89,14 @@ describe("install — happy path", () => {
   it("self-disables when native support appears after install", async () => {
     const handle = await install();
     expect(handle.isDisabled()).toBe(false);
-    window.Shopify = { StandardEvents: buildMockStandardEventsModule() };
+    // Simulate the theme configuring updateCart mid-session (e.g., a hot
+    // theme update). Library-loaded alone is no longer sufficient — see
+    // capability.ts docblock + the install no-op-paths suite above.
+    window.Shopify = {
+      actions: {
+        updateCart: Object.assign(() => Promise.resolve({}), { isDefault: () => false }),
+      },
+    };
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     document.dispatchEvent(new Event("visibilitychange"));
     expect(handle.isDisabled()).toBe(true);
