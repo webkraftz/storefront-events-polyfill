@@ -1,6 +1,6 @@
 {
   "name": "@retenka/storefront-events-polyfill",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Drop-in polyfill that dispatches Shopify's official Standard Storefront Events on themes that don't yet emit them natively. Intercepts /cart/{add,change,update,clear}.js, dispatches shopify:cart:lines-update / note-update / discount-update / error via the platform-hosted event classes.",
   "keywords": [
     "shopify",
