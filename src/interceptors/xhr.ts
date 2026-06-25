@@ -119,7 +119,23 @@ function stringifyXhrBody(
   if (body === undefined || body === null) return undefined;
   if (typeof body === "string") return body;
   if (body instanceof URLSearchParams) return body.toString();
-  // FormData / Blob / ArrayBuffer / ReadableStream / Document — Shopify cart
-  // endpoints don't use these, skip rather than misparse.
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    // Shopify product forms ship FormData (every `<form action="/cart/add">`
+    // block on every theme). XHR-based cart code paths exist too on older
+    // themes that don't use fetch. Convert to URL-encoded so the parser can
+    // extract id / quantity. Iteration is non-destructive — the underlying
+    // FormData remains intact for the network call.
+    const params = new URLSearchParams();
+    body.forEach((value, key) => {
+      // FormData values can be string | File. Files don't appear in Shopify
+      // cart endpoints — skip defensively.
+      if (typeof value === "string") {
+        params.append(key, value);
+      }
+    });
+    return params.toString();
+  }
+  // Blob / ArrayBuffer / ReadableStream / Document — don't appear on real
+  // cart endpoints, and reading would risk consuming the body.
   return undefined;
 }

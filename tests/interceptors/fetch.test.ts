@@ -163,7 +163,35 @@ describe("installFetchInterceptor", () => {
     uninstall();
   });
 
-  it("falls through cleanly when the body is not string-readable (FormData)", async () => {
+  it("parses FormData bodies (canonical Shopify product-form shape) and dispatches lines:add", async () => {
+    // Every theme's <form action="/cart/add"> ships FormData with at least
+    // `id` (variant ID) + `quantity`. The polyfill MUST parse this — field
+    // evidence from plus-webkraftz-com 2026-06-25 showed silent passthrough
+    // breaking cart-driven storefront widgets on every form-based theme.
+    const ctx = buildCtx();
+    const originalFetch = vi.fn(async () => new Response("ok"));
+    Object.defineProperty(window, "fetch", { value: originalFetch, configurable: true });
+    const uninstall = installFetchInterceptor(window, ctx);
+    const capture = captureEvents(document, ["shopify:cart:lines-update"]);
+
+    const fd = new FormData();
+    fd.append("form_type", "product");
+    fd.append("id", "49905871061185");
+    fd.append("quantity", "1");
+    await window.fetch("/cart/add.js", { method: "POST", body: fd });
+
+    expect(capture.events).toHaveLength(1);
+    const detail = (capture.events[0] as { detail: { action: string; lines: Array<{ merchandiseId: string; quantity: number }> } }).detail;
+    expect(detail.action).toBe("add");
+    expect(detail.lines).toEqual([
+      { merchandiseId: "gid://shopify/ProductVariant/49905871061185", quantity: 1 },
+    ]);
+    expect(originalFetch).toHaveBeenCalled();
+    capture.teardown();
+    uninstall();
+  });
+
+  it("skips FormData entries with File values (defensive — Shopify carts don't use Files)", async () => {
     const ctx = buildCtx();
     const originalFetch = vi.fn(async () => new Response("ok"));
     Object.defineProperty(window, "fetch", { value: originalFetch, configurable: true });
@@ -173,11 +201,11 @@ describe("installFetchInterceptor", () => {
     const fd = new FormData();
     fd.append("id", "11");
     fd.append("quantity", "1");
+    fd.append("attachment", new File(["x"], "x.txt", { type: "text/plain" }));
     await window.fetch("/cart/add.js", { method: "POST", body: fd });
 
-    // FormData isn't parsed — no events dispatched, original request still made.
-    expect(capture.events).toHaveLength(0);
-    expect(originalFetch).toHaveBeenCalled();
+    // File entry skipped silently; string entries still parsed → 1 lines:add event.
+    expect(capture.events).toHaveLength(1);
     capture.teardown();
     uninstall();
   });

@@ -101,9 +101,19 @@ function extractUrl(input: RequestInfo | URL): string | null {
 
 /**
  * Reads the request body without consuming the original. For Request objects
- * we clone before reading; for raw `init.body` we read whatever string-like
- * form is available. Returns undefined when the body isn't string-readable
- * (e.g., FormData, Blob — none of Shopify's cart endpoints use these).
+ * we clone before reading; for raw `init.body` we accept the body shapes
+ * Shopify theme product forms actually ship:
+ *
+ *  - `string` — JSON or URL-encoded payload (e.g., manual `fetch('/cart/add.js', { body: JSON.stringify(...) })`)
+ *  - `URLSearchParams` — manually-built form-encoded
+ *  - `FormData` — the canonical Shopify product-form submit shape (every
+ *    `<form action="/cart/add">` block emits this). Iterating FormData via
+ *    `.forEach()` is non-destructive; the underlying body remains intact
+ *    for the network call.
+ *
+ * Returns `undefined` for `Blob` / `ArrayBuffer` / `ReadableStream` since
+ * those don't appear on real cart endpoints and reading them would risk
+ * consuming the stream the browser is about to send.
  */
 async function snapshotRequestBody(
   input: RequestInfo | URL,
@@ -121,7 +131,18 @@ async function snapshotRequestBody(
   if (body === undefined || body === null) return undefined;
   if (typeof body === "string") return body;
   if (body instanceof URLSearchParams) return body.toString();
-  // FormData / Blob / ArrayBuffer / ReadableStream are not used by Shopify's
-  // cart endpoints. We skip rather than risk consuming the original body.
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    // Convert to URL-encoded string so the downstream parser (which already
+    // handles URLSearchParams via `parseCartRequest`) can extract id / quantity.
+    const params = new URLSearchParams();
+    body.forEach((value, key) => {
+      // FormData values can be string | File. Files don't appear in Shopify
+      // cart endpoints — skip defensively so File.toString() doesn't pollute.
+      if (typeof value === "string") {
+        params.append(key, value);
+      }
+    });
+    return params.toString();
+  }
   return undefined;
 }

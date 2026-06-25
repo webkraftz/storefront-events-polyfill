@@ -99,6 +99,32 @@ describe("installXhrInterceptor", () => {
     capture.teardown();
   });
 
+  it("parses FormData bodies sent via XHR (Shopify product-form shape)", () => {
+    // Every theme's <form action="/cart/add"> ships FormData. Some older
+    // themes use XHR rather than fetch — parity with the fetch interceptor.
+    const ctx = buildCtx();
+    Object.defineProperty(window, "XMLHttpRequest", { value: StubXhr, configurable: true });
+    uninstall = installXhrInterceptor(window, ctx);
+    const capture = captureEvents(document, ["shopify:cart:lines-update"]);
+
+    const fd = new FormData();
+    fd.append("form_type", "product");
+    fd.append("id", "49905871061185");
+    fd.append("quantity", "1");
+
+    const xhr = new StubXhr();
+    xhr.open("POST", "/cart/add.js");
+    xhr.send(fd);
+
+    expect(capture.events).toHaveLength(1);
+    const detail = (capture.events[0] as { detail: { action: string; lines: Array<{ merchandiseId: string; quantity: number }> } }).detail;
+    expect(detail.action).toBe("add");
+    expect(detail.lines).toEqual([
+      { merchandiseId: "gid://shopify/ProductVariant/49905871061185", quantity: 1 },
+    ]);
+    capture.teardown();
+  });
+
   it("dispatches CartErrorEvent on a non-2xx response", async () => {
     const ctx = buildCtx();
     Object.defineProperty(window, "XMLHttpRequest", { value: StubXhr, configurable: true });
