@@ -47,6 +47,29 @@ The release workflow includes a `Diagnostic — print OIDC claims for npm audien
 }
 ```
 
+### Why the workflow calls `npm publish` directly (NOT `changeset publish`)
+
+npm support flagged this in our 2026-06-25 ticket: tooling wrappers like
+`changeset publish`, `lerna publish`, and `pnpm -r publish` can publish
+via lower-level npm libraries rather than spawning the npm CLI binary,
+which **bypasses npm's OIDC token-exchange flow** and surfaces as the
+same 404 from the registry `PUT` endpoint. Sigstore signing still
+succeeds (the GitHub OIDC token mints fine), but npm's registry-side
+trusted-publisher exchange never gets called, so the upload is treated
+as unauthorized.
+
+The release workflow therefore overrides the changesets/action's
+`publish` input to a direct `npm publish --access public --provenance
+--loglevel verbose` invocation. The changesets/action still drives the
+Version Packages PR flow (`package.json` + `CHANGELOG.md` updates) —
+we just take over the publish step. `--loglevel verbose` is intentional
+so the OIDC handshake lines are visible in CI logs when a future failure
+needs the same diagnosis.
+
+The workflow also pins `npm@11` before the publish step, because the
+bundled npm version on some node 22 minor releases is 10.x with
+documented OIDC quirks. Pinning explicitly removes that variable.
+
 ### Common failure modes
 
 | Symptom                                                                                                                    | Cause                                                                                                                      | Fix                                                                                                                                                                                                                                                                                                      |

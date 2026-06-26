@@ -51,6 +51,30 @@ jobs:
       - name: Run CI gate before publishing
         run: npm run ci
 
+      # Pin npm to a known-good v11 and print registry config — per npm
+      # support's diagnostic checklist (ticket re: OIDC publish 404).
+      # An older bundled npm (10.x) shipped with some node 22 minor releases
+      # has documented quirks in the OIDC trusted-publishing exchange flow;
+      # pinning to 11.x forces the publishing path we want.
+      - name: Pin npm to v11 and print config
+        run: |
+          set -euo pipefail
+          echo "node version:"
+          node -v
+          echo "npm version (before pin):"
+          npm -v
+          npm i -g npm@11
+          echo "npm version (after pin):"
+          npm -v
+          echo "registry:"
+          npm config get registry
+          echo "ping:"
+          npm ping --registry=https://registry.npmjs.org
+          echo "config (all, scoped to npmjs.org auth lines):"
+          # full config dump can leak env-injected secrets if any present;
+          # filter to auth + registry lines only
+          npm config list -l 2>&1 | grep -iE "(registry|authToken|userconfig|globalconfig|//)" || true
+
       # Diagnostic — prints the OIDC token's claims (payload only, no signature
       # or token bytes leaked) for the npm registry audience. Lets us verify
       # that `repository`, `repository_owner`, `workflow_ref`, `job_workflow_ref`,
@@ -85,15 +109,28 @@ jobs:
           echo "::endgroup::"
           echo "::notice::Compare these claims against the npm trusted-publisher configuration at https://www.npmjs.com/package/@retenka/storefront-events-polyfill/access — repository + workflow filename + ref must match."
 
+      # Replaced `npm run release` (which calls `changeset publish`) with a
+      # direct `npm publish` invocation per npm support's diagnostic #1:
+      # the `changeset publish` wrapper may bypass npm's OIDC token-exchange
+      # path. The changesets/action still drives the Version PR flow (bumps
+      # package.json + writes CHANGELOG) — we just take over the publish step
+      # itself so the npm CLI handles auth directly.
+      #
+      # --loglevel verbose surfaces the OIDC handshake lines (per support
+      # diagnostic #3) so we can compare a successful run against the failing
+      # one. The action only invokes `publish` when there is an unpublished
+      # version on disk that's missing from the registry — i.e., immediately
+      # after a Version Packages PR merge.
       - name: Create release PR or publish
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: npm run release
+          publish: npm publish --access public --provenance --loglevel verbose
           commit: "chore: release @retenka/storefront-events-polyfill"
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NPM_TOKEN is intentionally omitted — the changesets action uses
-          # `npm publish --provenance` which authenticates via the OIDC token
-          # exposed by the id-token: write permission above.
+          # NPM_TOKEN is intentionally omitted — `npm publish --provenance`
+          # authenticates via the OIDC token exposed by the id-token: write
+          # permission above. Per support diagnostic #4, no token-based auth
+          # should be present at publish time.
