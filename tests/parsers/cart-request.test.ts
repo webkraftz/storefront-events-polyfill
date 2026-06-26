@@ -245,3 +245,71 @@ describe("parseCartRequest — non-matching URLs", () => {
     expect(parseCartRequest("/cart.js", undefined)).toBeNull();
   });
 });
+
+describe("parseCartRequest — /cart/update.js with `updates` array form", () => {
+  // The Liquid `<input name="updates[]">` form encodes updates positionally
+  // (no variant IDs, just quantities indexed by cart-line position). This is
+  // the legacy Liquid form pattern still used by themes that submit a
+  // <form action="/cart/update"> rather than a JSON fetch. parseUpdateBody
+  // must handle both the keyed-object form (modern AJAX) AND the positional
+  // array form, otherwise the line-update intents from these themes are
+  // silently dropped.
+  it("parses positional updates array into per-line update intents", () => {
+    const parsed = parseCartRequest("/cart/update.js", JSON.stringify({ updates: [3, 0, 2] }));
+    expect(parsed).not.toBeNull();
+    const intent = parsed?.intents[0];
+    expect(intent?.kind).toBe("lines");
+    if (intent?.kind === "lines") {
+      expect(intent.action).toBe("update");
+      expect(intent.lines).toEqual([
+        { id: "line:1", quantity: 3 },
+        { id: "line:2", quantity: 0 },
+        { id: "line:3", quantity: 2 },
+      ]);
+    }
+  });
+
+  it("drops non-numeric entries from positional updates array", () => {
+    const parsed = parseCartRequest(
+      "/cart/update.js",
+      JSON.stringify({ updates: [1, "not-a-number", 2] }),
+    );
+    expect(parsed?.intents[0]).toMatchObject({
+      kind: "lines",
+      lines: [
+        { id: "line:1", quantity: 1 },
+        // line:2 dropped — quantity "not-a-number" coerces to null
+        { id: "line:3", quantity: 2 },
+      ],
+    });
+  });
+
+  it("emits no lines intent when every positional update is non-numeric", () => {
+    const parsed = parseCartRequest("/cart/update.js", JSON.stringify({ updates: ["a", "b"] }));
+    // Body parsed successfully but yielded no usable intents.
+    expect(parsed?.intents.filter((i) => i.kind === "lines")).toEqual([]);
+  });
+});
+
+describe("parseCartRequest — body parsing fallback", () => {
+  // The form-urlencoded fallback path in parseBody (cart-request.ts ~165) is
+  // exercised whenever the body isn't JSON — most often the theme's classic
+  // <form action="/cart/add"> shape. We also defensively wrap the
+  // URLSearchParams construction in try/catch because some environments
+  // throw on invalid surrogate sequences. The catch returns null so the
+  // request passes through untouched.
+  it("returns no intents for an empty body", () => {
+    // Empty body → parseBody returns null → no intents extracted.
+    expect(parseCartRequest("/cart/add.js", "")?.intents ?? []).toEqual([]);
+    expect(parseCartRequest("/cart/add.js", undefined)?.intents ?? []).toEqual([]);
+  });
+
+  it("returns no intents when form-urlencoded body has no recognized keys", () => {
+    // Body parses successfully (URLSearchParams accepts arbitrary key/value
+    // pairs) but contains no id / quantity / updates / note / discount —
+    // so no intents are emitted. Exercises the empty-intents tail of the
+    // urlencoded fallback path.
+    const parsed = parseCartRequest("/cart/add.js", "irrelevant=value&also=this");
+    expect(parsed?.intents ?? []).toEqual([]);
+  });
+});

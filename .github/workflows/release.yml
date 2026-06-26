@@ -125,7 +125,14 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: npm publish --access public --provenance --loglevel verbose
+          # Calls scripts/publish-if-new.sh which short-circuits when the
+          # local package.json version is already on the registry (every
+          # docs-only / workflow-only push to main, which would otherwise
+          # produce a false-alarm CI failure email from npm rejecting a
+          # double-publish). When the version DOES differ — i.e., a Version
+          # Packages PR was just merged — it execs the real `npm publish
+          # --access public --provenance --loglevel verbose`.
+          publish: bash scripts/publish-if-new.sh
           commit: "chore: release @retenka/storefront-events-polyfill"
           title: "chore: version packages"
         env:
